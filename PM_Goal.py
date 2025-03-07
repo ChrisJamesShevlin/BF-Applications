@@ -12,10 +12,18 @@ def zip_probability(lam, k, p_zero=0.0):
 
 def dynamic_kelly(edge):
     """
-    Returns the Kelly fraction based on the edge.
+    Returns the Kelly fraction for back bets based on the edge.
     The Kelly fraction is 0.05 times the edge.
     """
     kelly_fraction = 0.05 * edge
+    return max(0, kelly_fraction)
+
+def dynamic_kelly_lay(edge):
+    """
+    Returns the Kelly fraction for lay bets based on the edge.
+    This uses a quarter Kelly (25% Kelly), i.e. 0.25 times the edge.
+    """
+    kelly_fraction = 0.25 * edge
     return max(0, kelly_fraction)
 
 def calculate_probabilities():
@@ -93,7 +101,8 @@ def calculate_probabilities():
         # --- 7) Apply Kelly staking plan for Under 2.5 (calculated but hidden) ---
         if final_fair_under_odds > live_under_odds:
             edge_lay = (final_fair_under_odds - live_under_odds) / final_fair_under_odds
-            kelly_fraction_lay = dynamic_kelly(edge_lay)
+            # Use quarter Kelly for lay bets
+            kelly_fraction_lay = dynamic_kelly_lay(edge_lay)
             liability_lay = account_balance * kelly_fraction_lay
             stake_under = liability_lay / (live_under_odds - 1) if (live_under_odds - 1) > 0 else 0
             under_recommendation = f"Lay Under at {live_under_odds:.2f} | Stake: {stake_under:.2f} | Liability: {liability_lay:.2f}"
@@ -109,7 +118,8 @@ def calculate_probabilities():
         # --- 8) Apply Kelly staking plan for Over 2.5 (display only lay bets) ---
         if final_fair_over_odds > live_over_odds:
             edge_lay = (final_fair_over_odds - live_over_odds) / final_fair_over_odds
-            kelly_fraction_lay = dynamic_kelly(edge_lay)
+            # Use quarter Kelly for lay bets
+            kelly_fraction_lay = dynamic_kelly_lay(edge_lay)
             liability_lay = account_balance * kelly_fraction_lay
             stake_over = liability_lay / (live_over_odds - 1) if (live_over_odds - 1) > 0 else 0
             over_recommendation = f"Lay Over at {live_over_odds:.2f} | Stake: {stake_over:.2f} | Liability: {liability_lay:.2f}"
