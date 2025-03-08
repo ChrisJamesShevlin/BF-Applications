@@ -78,10 +78,11 @@ class CombinedFootballBettingModel:
         reset_button.grid(row=row, column=0, columnspan=2, pady=10)
         row += 1
 
-        # Output area for both Next Goal and Match Odds calculations
+        # Output area for both betting insights and Match Odds calculations
         self.output_text = tk.Text(self.scrollable_frame, height=20, wrap="word")
         self.output_text.grid(row=row, column=0, columnspan=2, pady=10)
         # Configure color tags
+        self.output_text.tag_configure("insight", foreground="green")
         self.output_text.tag_configure("lay", foreground="red")
         self.output_text.tag_configure("back", foreground="blue")
         self.output_text.tag_configure("normal", foreground="black")
@@ -207,7 +208,7 @@ class CombinedFootballBettingModel:
         away_op_box_touches = f["Away Opp Box Touches"].get()
         home_corners = f["Home Corners"].get()
         away_corners = f["Away Corners"].get()
-        live_next_goal_odds = f["Live Next Goal Odds"].get()
+        live_next_goal_odds = f["Live Next Goal Odds"].get()  # Not used in insights now
         live_odds_home = f["Live Odds Home"].get()
         live_odds_draw = f["Live Odds Draw"].get()
         live_odds_away = f["Live Odds Away"].get()
@@ -224,7 +225,7 @@ class CombinedFootballBettingModel:
         remaining_minutes = 90 - elapsed_minutes
         fraction_remaining = max(0.0, remaining_minutes / 90.0)
 
-        # --- Next Goal Calculation ---
+        # --- Next Goal Calculation (for Betting Insights) ---
         home_xg_remainder = home_xg * fraction_remaining
         away_xg_remainder = away_xg * fraction_remaining
 
@@ -259,47 +260,25 @@ class CombinedFootballBettingModel:
         lambda_home *= 1 + ((home_corners - 4) / 50) * fraction_remaining
         lambda_away *= 1 + ((away_corners - 4) / 50) * fraction_remaining
 
-        # Probability at least one goal is scored in the remainder
+        # Calculate next goal probability
         goal_probability = 1 - exp(-((lambda_home + lambda_away) * (remaining_minutes / 45.0)))
         goal_probability = max(0.30, min(0.90, goal_probability))
-        fair_next_goal_odds = 1 / goal_probability
 
-        # Build the Next Goal output
-        lines_ng = []
-        lines_ng.append("--- Next Goal Calculation ---")
-        lines_ng.append(f"Goal Probability: {goal_probability:.2%} → Fair Next Goal Odds: {fair_next_goal_odds:.2f}")
-
-        if live_next_goal_odds > 0:
-            if fair_next_goal_odds > live_next_goal_odds:
-                # Potential value in LAY
-                edge_ng = (fair_next_goal_odds - live_next_goal_odds) / fair_next_goal_odds
-                if edge_ng > 0:
-                    kelly_fraction = self.dynamic_kelly(edge_ng)
-                    liability = account_balance * kelly_fraction
-                    profit = liability / (live_next_goal_odds - 1) if (live_next_goal_odds - 1) > 0 else 0
-                    lines_ng.append(
-                        f"Lay Next Goal at {live_next_goal_odds:.2f} | "
-                        f"Liability: {liability:.2f} | Profit: {profit:.2f}"
-                    )
-                else:
-                    lines_ng.append("No value bet found for Next Goal")
-            elif live_next_goal_odds > fair_next_goal_odds:
-                # Potential value in BACK
-                edge_ng = (live_next_goal_odds - fair_next_goal_odds) / fair_next_goal_odds
-                if edge_ng > 0:
-                    kelly_fraction = self.dynamic_kelly(edge_ng)
-                    stake = account_balance * kelly_fraction
-                    profit = stake * (live_next_goal_odds - 1)
-                    lines_ng.append(
-                        f"Back Next Goal at {live_next_goal_odds:.2f} | "
-                        f"Stake: {stake:.2f} | Profit: {profit:.2f}"
-                    )
-                else:
-                    lines_ng.append("No value bet found for Next Goal")
-            else:
-                lines_ng.append("No bet found for Next Goal")
+        # Determine goal expectation level based on probability thresholds
+        if goal_probability < 0.40:
+            level = "Low"
+            expected_goals_range = "0 to 1"
+        elif 0.40 <= goal_probability <= 0.60:
+            level = "Medium"
+            expected_goals_range = "1 to 2"
         else:
-            lines_ng.append("No bet found for Next Goal")
+            level = "High"
+            expected_goals_range = "2+"
+
+        lines_insight = []
+        lines_insight.append("--- Next Goal Insights ---")
+        lines_insight.append(f"Goal Probability: {goal_probability:.2%}")
+        lines_insight.append(f"Expected Goals: {expected_goals_range} ({level})")
 
         # --- Match Odds Calculation ---
         home_xg_remainder_mo = home_xg * fraction_remaining
@@ -343,10 +322,8 @@ class CombinedFootballBettingModel:
 
         for gh in range(6):
             for ga in range(6):
-                # Probability that home scores gh and away scores ga in the remainder
                 prob = (self.zero_inflated_poisson_probability(lambda_home_mo, gh) *
                         self.zero_inflated_poisson_probability(lambda_away_mo, ga))
-                # Then final total goals are (home_goals + gh) vs (away_goals + ga)
                 if home_goals + gh > away_goals + ga:
                     home_win_prob += prob
                 elif home_goals + gh < away_goals + ga:
@@ -368,9 +345,6 @@ class CombinedFootballBettingModel:
         lines_mo.append("--- Match Odds Calculation ---")
         lines_mo.append(f"Fair Odds - Home: {fair_odds_home:.2f}, Draw: {fair_odds_draw:.2f}, Away: {fair_odds_away:.2f}")
         lines_mo.append(f"Live Odds - Home: {live_odds_home:.2f}, Draw: {live_odds_draw:.2f}, Away: {live_odds_away:.2f}")
-
-        # Debug print: see the exact float values
-        print("DEBUG: fair_odds_home =", fair_odds_home, "live_odds_home =", live_odds_home)
 
         # Home market
         if fair_odds_home > live_odds_home:
@@ -414,20 +388,20 @@ class CombinedFootballBettingModel:
         else:
             lines_mo.append("Away: No clear edge.")
 
-        # Combine all lines, add some blank lines for spacing
+        # Combine all lines and display output
         combined_lines = []
-        combined_lines.extend(lines_ng)
-        combined_lines.append("")  # Blank line
+        combined_lines.extend(lines_insight)
+        combined_lines.append("")
         combined_lines.extend(lines_mo)
-        combined_lines.append("")  # Another blank line at the end
+        combined_lines.append("")
 
-        # Now insert line by line with color tags
         self.output_text.config(state="normal")
         self.output_text.delete("1.0", tk.END)
 
         for line in combined_lines:
-            # Decide which tag to use based on presence of "Lay" or "Back"
-            if "Lay " in line:
+            if line.startswith("--- Next Goal Insights"):
+                self.output_text.insert(tk.END, line + "\n", "insight")
+            elif "Lay " in line:
                 self.output_text.insert(tk.END, line + "\n", "lay")
             elif "Back " in line:
                 self.output_text.insert(tk.END, line + "\n", "back")
