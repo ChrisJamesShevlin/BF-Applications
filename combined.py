@@ -104,7 +104,7 @@ class CombinedFootballBettingModel:
         }
 
     # ----- Common Methods -----
-    def zero_inflated_poisson_probability(self, lam, k, p_zero=0.02):
+    def zero_inflated_poisson_probability(self, lam, k, p_zero=0.01):
         """
         A slight variation of Poisson to allow for 'zero inflation' 
         (i.e., more 0-goal outcomes than standard Poisson).
