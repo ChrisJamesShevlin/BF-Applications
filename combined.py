@@ -104,10 +104,11 @@ class CombinedFootballBettingModel:
         }
 
     # ----- Common Methods -----
-    def zero_inflated_poisson_probability(self, lam, k, p_zero=0.06):
+    def zero_inflated_poisson_probability(self, lam, k, p_zero=0.02):
         """
         A slight variation of Poisson to allow for 'zero inflation' 
         (i.e., more 0-goal outcomes than standard Poisson).
+        Loosened by reducing p_zero from 0.06 to 0.02.
         """
         if k == 0:
             return p_zero + (1 - p_zero) * exp(-lam)
@@ -116,15 +117,15 @@ class CombinedFootballBettingModel:
     def time_decay_adjustment(self, lambda_xg, elapsed_minutes, in_game_xg):
         """
         Applies a time-decay factor to the expected goals for the remainder.
-        We also allow in_game_xg to influence the final scaling if desired.
+        Loosened by using a gentler decay factor.
         """
         remaining_minutes = 90 - elapsed_minutes
-        base_decay = exp(-0.01 * elapsed_minutes)
-        # Lower the floor from 0.6 to 0.4
+        base_decay = exp(-0.005 * elapsed_minutes)  # gentler decay than before
+        # Lower the floor remains at 0.4
         base_decay = max(base_decay, 0.4)
         # If less than 10 minutes remain, scale further
         if remaining_minutes < 10:
-            base_decay *= 0.75  # was 0.65
+            base_decay *= 0.75  # was 0.65 before
         adjusted_lambda = lambda_xg * base_decay
         # Enforce a minimum
         adjusted_lambda = max(0.1, adjusted_lambda)
@@ -144,10 +145,6 @@ class CombinedFootballBettingModel:
         elif goal_diff == -1:
             lambda_home *= 1.2
             lambda_away *= 0.9
-        elif goal_diff == 0:
-            # small boost if it's a draw
-            lambda_home *= 1.05
-            lambda_away *= 1.05
         elif abs(goal_diff) >= 2:
             if goal_diff > 0:
                 lambda_home *= 0.8
